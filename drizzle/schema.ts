@@ -61,11 +61,14 @@ export const challenges = mysqlTable("challenges", {
   source: mysqlEnum("source", ["original", "generated"]).default("original").notNull(),
   starterCode: text("starterCode").notNull(),
   solutionCode: text("solutionCode").notNull(),
+  referenceAnswer: text("referenceAnswer").notNull(), // AI判题用的参考答案
+  answerExplanation: text("answerExplanation").notNull(), // 答案解释
   hints: text("hints").notNull(), // JSON数组
   tags: text("tags").notNull(), // JSON数组
   estimatedTime: varchar("estimatedTime", { length: 50 }),
   publicTests: text("publicTests").notNull(), // JSON数组
   hiddenTests: text("hiddenTests").notNull(), // JSON数组（不通过API暴露）
+  gradingCriteria: text("gradingCriteria").notNull(), // JSON数组，评分标准
   points: int("points").default(10).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -82,6 +85,8 @@ export const submissions = mysqlTable("submissions", {
   score: int("score").default(0).notNull(),
   runtimeMs: int("runtimeMs").default(0).notNull(),
   testResults: text("testResults").notNull(), // JSON字符串
+  feedback: text("feedback"), // AI简短反馈
+  aiAnalysis: text("aiAnalysis"), // AI详细分析（JSON）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

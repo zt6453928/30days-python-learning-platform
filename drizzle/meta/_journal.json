@@ -15,6 +15,13 @@
       "when": 1761847163609,
       "tag": "0001_sleepy_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1761849400692,
+      "tag": "0002_curly_lenny_balinger",
+      "breakpoints": true
     }
   ]
 }

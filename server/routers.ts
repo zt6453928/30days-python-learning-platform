@@ -20,6 +20,7 @@ import {
   grantBadge,
   getLeaderboard,
 } from "./db";
+import { gradeWithAI, checkSyntax } from "./core/aiGrader";
 
 export const appRouter = router({
   system: systemRouter,
@@ -148,24 +149,43 @@ export const appRouter = router({
           throw new Error('Challenge not found');
         }
 
-        // 简单的判题逻辑（实际应该在前端用Pyodide运行）
-        // 这里只是示例，实际判题会在前端完成
-        const passed = input.code.trim().length > 0;
-        const score = passed ? challenge.points : 0;
+        // 先检查语法
+        const syntaxCheck = await checkSyntax(input.code);
+        if (!syntaxCheck.valid) {
+          return {
+            passed: false,
+            score: 0,
+            feedback: `语法错误: ${syntaxCheck.error}`,
+            analysis: null,
+          };
+        }
+
+        // 使用AI智能判题
+        const startTime = Date.now();
+        const gradingResult = await gradeWithAI({
+          challengeDescription: challenge.description,
+          referenceAnswer: challenge.referenceAnswer,
+          answerExplanation: challenge.answerExplanation,
+          gradingCriteria: JSON.parse(challenge.gradingCriteria),
+          userCode: input.code,
+        });
+        const runtimeMs = Date.now() - startTime;
 
         // 创建提交记录
         const submission = await createSubmission({
           userId: ctx.user.id,
           challengeId: input.challengeId,
           code: input.code,
-          passed,
-          score,
-          runtimeMs: 0,
-          testResults: JSON.stringify({ passed }),
+          passed: gradingResult.passed,
+          score: gradingResult.score,
+          runtimeMs,
+          testResults: JSON.stringify(gradingResult.analysis),
+          feedback: gradingResult.feedback,
+          aiAnalysis: JSON.stringify(gradingResult.analysis),
         });
 
         // 更新用户进度
-        if (passed) {
+        if (gradingResult.passed) {
           const progress = await getUserDayProgressData(ctx.user.id, challenge.dayId);
           const levelKey = `exercisesLevel${challenge.level}Passed` as keyof typeof progress;
           const currentPassed = progress?.[levelKey] || 0;
@@ -176,8 +196,10 @@ export const appRouter = router({
         }
 
         return {
-          passed,
-          score,
+          passed: gradingResult.passed,
+          score: gradingResult.score,
+          feedback: gradingResult.feedback,
+          analysis: gradingResult.analysis,
           submissionId: submission.id,
         };
       }),

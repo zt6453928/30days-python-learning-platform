@@ -3,7 +3,7 @@ import path from 'path';
 
 /**
  * Markdown解析器 - 核心功能
- * 负责解析30天Python学习内容，提取完整的学习材料和练习题
+ * 负责解析30天Python学习内容（中文版），提取完整的学习材料和练习题
  */
 
 export interface ParsedSection {
@@ -46,286 +46,74 @@ export interface DayContent {
 }
 
 /**
- * 解析Markdown文件的完整内容
+ * 从HTML标签中提取纯文本
  */
-export function parseMarkdownFile(filePath: string, dayId: number): DayContent {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  
-  // 提取标题
-  const titleMatch = content.match(/^#\s+(.+)$/m) || content.match(/<h1[^>]*>(.+?)<\/h1>/);
-  const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : `Day ${dayId}`;
-  
-  // 提取摘要（第一段文字）
-  const paragraphs = content.split('\n\n').filter(p => 
-    p.trim() && 
-    !p.startsWith('#') && 
-    !p.startsWith('```') && 
-    !p.startsWith('![') &&
-    !p.startsWith('<') &&
-    !p.startsWith('-') &&
-    !p.startsWith('*')
-  );
-  const summary = paragraphs[0]?.substring(0, 200) || `Python Day ${dayId} 学习内容`;
-  
-  // 解析章节结构
-  const sections = parseMarkdownSections(content);
-  
-  // 提取练习题
-  const exercises = extractExercises(content, dayId);
-  
-  // 提取学习目标
-  const learningObjectives = extractLearningObjectives(content);
-  
-  return {
-    id: dayId,
-    order: dayId,
-    title,
-    summary,
-    estimatedTime: estimateReadingTime(content),
-    rawMarkdown: content,
-    sections,
-    exercises,
-    learningObjectives,
-  };
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '') // 移除所有HTML标签
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
 }
 
 /**
- * 解析Markdown内容为结构化章节
+ * 从Markdown内容中提取纯文本摘要
  */
-function parseMarkdownSections(markdown: string): ParsedSection[] {
-  const sections: ParsedSection[] = [];
+function extractSummary(markdown: string): string {
   const lines = markdown.split('\n');
-  let i = 0;
-  
-  while (i < lines.length) {
-    const line = lines[i];
-    
-    // 标题
-    if (line.match(/^#{1,6}\s+/)) {
-      const level = line.match(/^(#{1,6})/)?.[1].length || 1;
-      const content = line.replace(/^#{1,6}\s+/, '').replace(/<[^>]+>/g, '').trim();
-      sections.push({ type: 'heading', level, content });
-      i++;
-    }
-    // 代码块
-    else if (line.startsWith('```')) {
-      const language = line.substring(3).trim() || 'text';
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      const code = codeLines.join('\n');
-      sections.push({
-        type: 'code',
-        language,
-        content: code,
-        runnable: language === 'python' || language === 'py',
-      });
-      i++;
-    }
-    // 图片
-    else if (line.match(/^!\[([^\]]*)\]\(([^)]+)\)/)) {
-      const match = line.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
-      if (match) {
-        sections.push({
-          type: 'image',
-          alt: match[1],
-          src: match[2],
-          content: match[1],
-        });
-      }
-      i++;
-    }
-    // 列表
-    else if (line.match(/^[\s]*[-*+]\s+/) || line.match(/^[\s]*\d+\.\s+/)) {
-      const items: string[] = [];
-      while (i < lines.length && (lines[i].match(/^[\s]*[-*+]\s+/) || lines[i].match(/^[\s]*\d+\.\s+/))) {
-        const item = lines[i].replace(/^[\s]*[-*+]\s+/, '').replace(/^[\s]*\d+\.\s+/, '').trim();
-        if (item) items.push(item);
-        i++;
-      }
-      sections.push({ type: 'list', content: items.join('\n'), items });
-    }
-    // 引用
-    else if (line.startsWith('>')) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && lines[i].startsWith('>')) {
-        quoteLines.push(lines[i].replace(/^>\s*/, ''));
-        i++;
-      }
-      sections.push({ type: 'blockquote', content: quoteLines.join('\n') });
-    }
-    // 段落
-    else if (line.trim() && !line.startsWith('<') && !line.startsWith('[')) {
-      const paragraphLines: string[] = [line];
-      i++;
-      while (i < lines.length && lines[i].trim() && !lines[i].match(/^[#`!\-*+>]/) && !lines[i].match(/^\d+\./)) {
-        paragraphLines.push(lines[i]);
-        i++;
-      }
-      const content = paragraphLines.join(' ').trim();
-      if (content) {
-        sections.push({ type: 'paragraph', content });
-      }
-    }
-    else {
-      i++;
-    }
-  }
-  
-  return sections;
-}
-
-/**
- * 提取练习题
- */
-function extractExercises(markdown: string, dayId: number): {
-  level1: Exercise[];
-  level2: Exercise[];
-  level3: Exercise[];
-} {
-  const exercises = {
-    level1: [] as Exercise[],
-    level2: [] as Exercise[],
-    level3: [] as Exercise[],
-  };
-  
-  // 查找练习题部分
-  const exerciseMatch = markdown.match(/##\s*💻\s*Exercises[\s\S]*$/i) || 
-                       markdown.match(/##\s*Exercises[\s\S]*$/i);
-  
-  if (!exerciseMatch) {
-    return exercises;
-  }
-  
-  const exerciseSection = exerciseMatch[0];
-  
-  // 提取Level 1练习题
-  const level1Match = exerciseSection.match(/###\s*Exercises:\s*Level\s*1([\s\S]*?)(?=###|$)/i);
-  if (level1Match) {
-    exercises.level1 = parseExerciseList(level1Match[1], dayId, 1);
-  }
-  
-  // 提取Level 2练习题
-  const level2Match = exerciseSection.match(/###\s*Exercises:\s*Level\s*2([\s\S]*?)(?=###|$)/i);
-  if (level2Match) {
-    exercises.level2 = parseExerciseList(level2Match[1], dayId, 2);
-  }
-  
-  // 提取Level 3练习题（如果有）
-  const level3Match = exerciseSection.match(/###\s*Exercises:\s*Level\s*3([\s\S]*?)(?=###|$)/i);
-  if (level3Match) {
-    exercises.level3 = parseExerciseList(level3Match[1], dayId, 3);
-  }
-  
-  return exercises;
-}
-
-/**
- * 解析练习题列表
- */
-function parseExerciseList(text: string, dayId: number, level: number): Exercise[] {
-  const exercises: Exercise[] = [];
-  const lines = text.split('\n').filter(line => line.trim());
-  
-  let currentExercise: Partial<Exercise> | null = null;
-  let order = 1;
+  let summary = '';
+  let foundContent = false;
   
   for (const line of lines) {
-    // 匹配编号的练习题
-    const match = line.match(/^\s*(\d+)\.\s+(.+)$/);
-    if (match) {
-      // 保存上一个练习题
-      if (currentExercise && currentExercise.description) {
-        exercises.push({
-          id: `challenge_${dayId}_${level}_${currentExercise.order}`,
-          level,
-          order: currentExercise.order!,
-          description: currentExercise.description,
-          starterCode: generateStarterCode(currentExercise.description),
-          hints: generateHints(currentExercise.description),
-          tags: extractTags(currentExercise.description, dayId),
-        });
-      }
-      
-      // 开始新的练习题
-      currentExercise = {
-        order,
-        description: match[2].trim(),
-      };
-      order++;
-    } else if (currentExercise && line.trim()) {
-      // 继续当前练习题的描述
-      currentExercise.description += ' ' + line.trim();
+    const trimmed = line.trim();
+    
+    // 跳过HTML标签、空行、标题、图片、链接
+    if (trimmed.startsWith('<') || 
+        trimmed.startsWith('#') || 
+        trimmed.startsWith('!') || 
+        trimmed.startsWith('[') ||
+        trimmed.length === 0) {
+      continue;
+    }
+    
+    // 跳过代码块
+    if (trimmed.startsWith('```')) {
+      continue;
+    }
+    
+    // 找到第一段有意义的文本
+    if (trimmed.length > 20) {
+      summary = stripHtmlTags(trimmed);
+      foundContent = true;
+      break;
     }
   }
   
-  // 保存最后一个练习题
-  if (currentExercise && currentExercise.description) {
-    exercises.push({
-      id: `challenge_${dayId}_${level}_${currentExercise.order}`,
-      level,
-      order: currentExercise.order!,
-      description: currentExercise.description,
-      starterCode: generateStarterCode(currentExercise.description),
-      hints: generateHints(currentExercise.description),
-      tags: extractTags(currentExercise.description, dayId),
-    });
+  if (!foundContent || summary.length < 20) {
+    summary = '学习Python编程的重要概念和实践技能';
   }
   
-  return exercises;
+  // 限制摘要长度
+  if (summary.length > 150) {
+    summary = summary.substring(0, 147) + '...';
+  }
+  
+  return summary;
 }
 
 /**
- * 生成起始代码模板
+ * 提取预计学习时间
  */
-function generateStarterCode(description: string): string {
-  return `# ${description.substring(0, 50)}...\n# 在这里编写你的代码\n\n`;
-}
-
-/**
- * 生成提示
- */
-function generateHints(description: string): string[] {
-  const hints: string[] = [];
-  
-  if (description.toLowerCase().includes('print')) {
-    hints.push('使用 print() 函数输出结果');
+function extractEstimatedTime(markdown: string): string {
+  const match = markdown.match(/阅读大约需要[：:]\s*(\d+[mh分小时]+)/i);
+  if (match) {
+    return match[1].replace('m', '分钟').replace('h', '小时');
   }
-  if (description.toLowerCase().includes('variable')) {
-    hints.push('记得先声明变量');
-  }
-  if (description.toLowerCase().includes('function')) {
-    hints.push('定义函数使用 def 关键字');
-  }
-  if (description.toLowerCase().includes('list')) {
-    hints.push('列表使用方括号 [] 创建');
-  }
-  
-  if (hints.length === 0) {
-    hints.push('仔细阅读题目要求');
-    hints.push('参考本天的学习内容');
-  }
-  
-  return hints;
-}
-
-/**
- * 提取标签
- */
-function extractTags(description: string, dayId: number): string[] {
-  const tags: string[] = [`Day ${dayId}`];
-  
-  const keywords = ['variable', 'function', 'list', 'dict', 'string', 'loop', 'if', 'class'];
-  for (const keyword of keywords) {
-    if (description.toLowerCase().includes(keyword)) {
-      tags.push(keyword);
-    }
-  }
-  
-  return tags;
+  return '1-2小时';
 }
 
 /**
@@ -333,42 +121,189 @@ function extractTags(description: string, dayId: number): string[] {
  */
 function extractLearningObjectives(markdown: string): string[] {
   const objectives: string[] = [];
+  const lines = markdown.split('\n');
   
-  // 尝试从内容中提取关键概念
-  const headings = markdown.match(/^##\s+(.+)$/gm);
-  if (headings) {
-    headings.slice(0, 5).forEach(heading => {
-      const cleaned = heading.replace(/^##\s+/, '').replace(/[#*`]/g, '').trim();
-      if (cleaned && !cleaned.toLowerCase().includes('exercise')) {
-        objectives.push(`理解${cleaned}`);
+  // 查找目录部分或重点内容
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // 从目录中提取
+    if (line.match(/^-\s+\[.+\]\(.+\)$/)) {
+      const match = line.match(/\[(.+)\]/);
+      if (match && match[1] && !match[1].includes('第') && !match[1].includes('Day')) {
+        const objective = stripHtmlTags(match[1]);
+        if (objective.length > 2 && objective.length < 50) {
+          objectives.push(objective);
+        }
       }
-    });
+    }
   }
   
-  return objectives;
+  // 如果没有找到，使用默认目标
+  if (objectives.length === 0) {
+    objectives.push('理解本章节的核心概念');
+    objectives.push('掌握相关的Python语法');
+    objectives.push('通过练习巩固所学知识');
+  }
+  
+  return objectives.slice(0, 5); // 最多5个目标
 }
 
 /**
- * 估算阅读时间
+ * 解析练习题部分
  */
-function estimateReadingTime(markdown: string): string {
-  const words = markdown.split(/\s+/).length;
-  const minutes = Math.ceil(words / 200); // 假设每分钟200字
+function parseExercises(markdown: string, dayId: number): { level1: Exercise[]; level2: Exercise[]; level3: Exercise[] } {
+  const exercises = {
+    level1: [] as Exercise[],
+    level2: [] as Exercise[],
+    level3: [] as Exercise[]
+  };
   
-  if (minutes < 30) {
-    return `${minutes}分钟`;
-  } else if (minutes < 90) {
-    return `${Math.floor(minutes / 30) * 30}分钟 - ${Math.ceil(minutes / 30) * 30}分钟`;
-  } else {
-    const hours = Math.floor(minutes / 60);
-    return `${hours}-${hours + 1}小时`;
+  const lines = markdown.split('\n');
+  let currentLevel = 0;
+  let exerciseOrder = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // 检测练习题级别
+    if (line.match(/###\s*练习[：:]\s*1级|###\s*Exercises[：:]\s*Level\s*1/i)) {
+      currentLevel = 1;
+      exerciseOrder = 0;
+      continue;
+    }
+    if (line.match(/###\s*练习[：:]\s*2级|###\s*Exercises[：:]\s*Level\s*2/i)) {
+      currentLevel = 2;
+      exerciseOrder = 0;
+      continue;
+    }
+    if (line.match(/###\s*练习[：:]\s*3级|###\s*Exercises[：:]\s*Level\s*3/i)) {
+      currentLevel = 3;
+      exerciseOrder = 0;
+      continue;
+    }
+    
+    // 提取练习题
+    if (currentLevel > 0 && line.match(/^\d+\.\s+.+/)) {
+      exerciseOrder++;
+      const description = line.replace(/^\d+\.\s+/, '').trim();
+      
+      if (description.length > 5) {
+        const exercise: Exercise = {
+          id: `day${dayId}_level${currentLevel}_${exerciseOrder}`,
+          level: currentLevel,
+          order: exerciseOrder,
+          description: stripHtmlTags(description),
+          starterCode: '# 在这里编写你的代码\n',
+          hints: [],
+          tags: []
+        };
+        
+        if (currentLevel === 1) {
+          exercises.level1.push(exercise);
+        } else if (currentLevel === 2) {
+          exercises.level2.push(exercise);
+        } else if (currentLevel === 3) {
+          exercises.level3.push(exercise);
+        }
+      }
+    }
   }
+  
+  return exercises;
 }
 
 /**
- * 加载所有30天的内容
+ * 解析Markdown文件的完整内容
+ */
+export function parseMarkdownFile(filePath: string, dayId: number): DayContent {
+  const rawMarkdown = fs.readFileSync(filePath, 'utf-8');
+  
+  // 提取标题
+  const titleMatch = rawMarkdown.match(/# 📘 第.+天|#\s*Day\s*\d+[：:]/i);
+  let title = titleMatch ? stripHtmlTags(titleMatch[0].replace(/^#\s*/, '')) : `Day ${dayId}`;
+  
+  // 如果标题太长，简化它
+  if (title.length > 50) {
+    const simpleMatch = rawMarkdown.match(/第(.+)天\s*[-–—]\s*(.+)|Day\s*\d+\s*[-–—]\s*(.+)/i);
+    if (simpleMatch) {
+      title = simpleMatch[2] || simpleMatch[3] || title;
+      title = stripHtmlTags(title).substring(0, 50);
+    }
+  }
+  
+  // 提取摘要
+  const summary = extractSummary(rawMarkdown);
+  
+  // 提取预计时间
+  const estimatedTime = extractEstimatedTime(rawMarkdown);
+  
+  // 提取学习目标
+  const learningObjectives = extractLearningObjectives(rawMarkdown);
+  
+  // 解析练习题
+  const exercises = parseExercises(rawMarkdown, dayId);
+  
+  // 简单的section解析（用于展示）
+  const sections: ParsedSection[] = [
+    { type: 'paragraph', content: summary }
+  ];
+  
+  return {
+    id: dayId,
+    order: dayId,
+    title,
+    summary,
+    estimatedTime,
+    rawMarkdown,
+    sections,
+    exercises,
+    learningObjectives
+  };
+}
+
+/**
+ * 加载所有30天的学习内容
  */
 export function loadAllDays(): DayContent[] {
+  const chineseDir = path.join(process.cwd(), 'content', '30DaysPython', 'Chinese');
+  const days: DayContent[] = [];
+  
+  // 检查Chinese目录是否存在
+  if (!fs.existsSync(chineseDir)) {
+    console.warn('Chinese目录不存在，尝试使用英文目录');
+    return loadAllDaysFromEnglish();
+  }
+  
+  // 读取Chinese目录下的所有md文件
+  const files = fs.readdirSync(chineseDir).filter(f => f.endsWith('.md') && f !== 'README.md');
+  
+  for (const file of files) {
+    // 从文件名提取day编号
+    const match = file.match(/^(\d+)_/);
+    if (match) {
+      const dayId = parseInt(match[1]);
+      const filePath = path.join(chineseDir, file);
+      
+      try {
+        const dayContent = parseMarkdownFile(filePath, dayId);
+        days.push(dayContent);
+      } catch (error) {
+        console.error(`解析${file}失败:`, error);
+      }
+    }
+  }
+  
+  // Day 1 特殊处理（创建简单的介绍内容）
+  days.unshift(createDay1Content());
+  
+  return days.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * 降级方案：从英文目录加载
+ */
+function loadAllDaysFromEnglish(): DayContent[] {
   const contentDir = path.join(process.cwd(), 'content', '30DaysPython');
   const days: DayContent[] = [];
   
@@ -390,36 +325,43 @@ export function loadAllDays(): DayContent[] {
     }
   }
   
-  // Day 1 特殊处理（创建简单的介绍内容）
   days.unshift(createDay1Content());
   
   return days.sort((a, b) => a.order - b.order);
 }
 
 /**
- * 为Day 1创建内容（因为原仓库没有Day 1的Markdown）
+ * 为Day 1创建中文内容
  */
 function createDay1Content(): DayContent {
   return {
     id: 1,
     order: 1,
     title: 'Day 1: Python 简介',
-    summary: '欢迎来到30天Python学习之旅！在第一天，我们将了解Python的基础知识。',
+    summary: '欢迎来到30天Python学习之旅！在第一天，我们将了解Python的基础知识，安装Python环境，并编写第一个程序。',
     estimatedTime: '1-2小时',
-    rawMarkdown: `# Day 1: Python 简介
+    rawMarkdown: `# 📘 Day 1: Python 简介
 
 欢迎来到30天Python学习之旅！
 
 ## 什么是Python
 
-Python是一种高级、解释型、通用的编程语言。它的设计哲学强调代码的可读性和简洁性。
+Python是一种高级、解释型、通用的编程语言。它的设计哲学强调代码的可读性和简洁性。Python由Guido van Rossum于1991年创建，现在已经成为世界上最流行的编程语言之一。
 
 ## 为什么学习Python
 
-- 简单易学
-- 功能强大
-- 应用广泛
-- 社区活跃
+- **简单易学**：Python的语法简洁明了，非常适合编程初学者
+- **功能强大**：可以用于Web开发、数据分析、人工智能、自动化等多个领域
+- **应用广泛**：被Google、Facebook、Instagram等大公司广泛使用
+- **社区活跃**：拥有庞大的开发者社区和丰富的第三方库
+
+## Python的应用领域
+
+1. **Web开发**：Django、Flask等框架
+2. **数据科学**：NumPy、Pandas、Matplotlib
+3. **人工智能**：TensorFlow、PyTorch
+4. **自动化脚本**：系统管理、测试自动化
+5. **游戏开发**：Pygame
 
 ## 开始你的Python之旅
 
@@ -427,67 +369,87 @@ Python是一种高级、解释型、通用的编程语言。它的设计哲学�
 
 \`\`\`python
 print("Hello, World!")
+print("欢迎来到Python世界！")
 \`\`\`
 
-## 💻 Exercises - Day 1
+## 基本语法
 
-### Exercises: Level 1
+### 注释
+\`\`\`python
+# 这是单行注释
 
-1. Check the Python version you are using
-2. Open the Python interactive shell and do the following operations
-3. Write a Python script and print "Hello, World!"
-4. Check the data types of the following data: 10, 9.8, 3.14, 'Hello'
+"""
+这是多行注释
+可以写很多行
+"""
+\`\`\`
 
-### Exercises: Level 2
+### 变量
+\`\`\`python
+name = "Python"
+version = 3.11
+is_awesome = True
+\`\`\`
 
-1. Create a folder named day_1 inside 30DaysOfPython folder
-2. Write a Python comment explaining what Python is
-3. Write different Python data types
+## 💻 练习 - Day 1
+
+### 练习：1级
+
+1. 检查你使用的Python版本
+2. 打开Python交互式shell并进行以下操作：加法、减法、乘法、除法
+3. 编写一个Python脚本并打印"Hello, World!"
+4. 检查以下数据的数据类型：10, 9.8, 3.14, 'Hello', True
+
+### 练习：2级
+
+1. 在30DaysOfPython文件夹内创建一个名为day_1的文件夹
+2. 编写一个Python注释，解释什么是Python
+3. 编写不同的Python数据类型示例
+4. 找到一个欧几里得距离计算公式并用Python实现
 `,
     sections: [
       { type: 'heading', level: 1, content: 'Day 1: Python 简介' },
-      { type: 'paragraph', content: '欢迎来到30天Python学习之旅！' },
-      { type: 'heading', level: 2, content: '什么是Python' },
-      { type: 'paragraph', content: 'Python是一种高级、解释型、通用的编程语言。' },
+      { type: 'paragraph', content: '欢迎来到30天Python学习之旅！在第一天，我们将了解Python的基础知识，安装Python环境，并编写第一个程序。' }
     ],
     exercises: {
       level1: [
         {
-          id: 'challenge_1_1_1',
+          id: 'day1_level1_1',
           level: 1,
           order: 1,
-          description: 'Check the Python version you are using',
-          starterCode: '# 检查Python版本\n# 在这里编写你的代码\n\n',
-          hints: ['使用 python --version 命令', '或在代码中使用 sys.version'],
-          tags: ['Day 1', 'basics'],
+          description: '检查你使用的Python版本',
+          starterCode: '# 在这里编写你的代码\n',
+          hints: ['使用 python --version 命令'],
+          tags: ['基础']
         },
         {
-          id: 'challenge_1_1_2',
+          id: 'day1_level1_2',
           level: 1,
           order: 2,
-          description: 'Write a Python script and print "Hello, World!"',
-          starterCode: '# 打印 Hello, World!\n# 在这里编写你的代码\n\n',
-          hints: ['使用 print() 函数', '字符串需要用引号包围'],
-          tags: ['Day 1', 'print'],
-        },
+          description: '打开Python交互式shell并进行以下操作：加法、减法、乘法、除法',
+          starterCode: '# 在这里编写你的代码\n',
+          hints: ['使用 +, -, *, / 运算符'],
+          tags: ['基础', '运算符']
+        }
       ],
       level2: [
         {
-          id: 'challenge_1_2_1',
+          id: 'day1_level2_1',
           level: 2,
           order: 1,
-          description: 'Write a Python comment explaining what Python is',
-          starterCode: '# 在这里编写注释解释什么是Python\n\n',
-          hints: ['注释以 # 开头', '可以写多行注释'],
-          tags: ['Day 1', 'comment'],
-        },
+          description: '编写一个Python注释，解释什么是Python',
+          starterCode: '# 在这里编写你的代码\n',
+          hints: ['使用 # 或 """ """ 来写注释'],
+          tags: ['注释']
+        }
       ],
-      level3: [],
+      level3: []
     },
     learningObjectives: [
-      '了解Python的基本概念',
-      '学会编写第一个Python程序',
-      '理解Python的应用场景',
-    ],
+      '了解Python的基本概念和特点',
+      '学习Python的基本语法',
+      '编写第一个Python程序',
+      '理解Python的数据类型'
+    ]
   };
 }

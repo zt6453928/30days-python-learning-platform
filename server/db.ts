@@ -226,6 +226,8 @@ export async function createSubmission(data: {
   score: number;
   runtimeMs: number;
   testResults: string;
+  feedback?: string;
+  aiAnalysis?: string;
 }): Promise<Submission> {
   const db = await getDb();
   if (!db) throw new Error('Database not available');

@@ -65,11 +65,14 @@ export async function seedDatabase() {
           source: 'original',
           starterCode: exercise.starterCode,
           solutionCode: '# 参考答案\n' + exercise.starterCode,
+          referenceAnswer: exercise.starterCode,
+          answerExplanation: '请根据题目要求编写代码',
           hints: JSON.stringify(exercise.hints),
           tags: JSON.stringify(exercise.tags),
           estimatedTime: '5-10分钟',
           publicTests: JSON.stringify([]),
           hiddenTests: JSON.stringify([]),
+          gradingCriteria: JSON.stringify(['代码能够正常运行', '实现了题目要求的功能', '代码风格良好']),
           points: 10,
         }).onDuplicateKeyUpdate({
           set: { description: exercise.description }
@@ -89,11 +92,14 @@ export async function seedDatabase() {
           source: 'original',
           starterCode: exercise.starterCode,
           solutionCode: '# 参考答案\n' + exercise.starterCode,
+          referenceAnswer: exercise.starterCode,
+          answerExplanation: '请根据题目要求编写代码',
           hints: JSON.stringify(exercise.hints),
           tags: JSON.stringify(exercise.tags),
           estimatedTime: '10-15分钟',
           publicTests: JSON.stringify([]),
           hiddenTests: JSON.stringify([]),
+          gradingCriteria: JSON.stringify(['代码能够正常运行', '实现了题目要求的功能', '代码风格良好']),
           points: 15,
         }).onDuplicateKeyUpdate({
           set: { description: exercise.description }
@@ -114,11 +120,14 @@ export async function seedDatabase() {
           source: 'generated',
           starterCode: exercise.starterCode,
           solutionCode: '# 参考答案\n' + exercise.starterCode,
+          referenceAnswer: (exercise as any).referenceAnswer || exercise.starterCode,
+          answerExplanation: (exercise as any).answerExplanation || '请根据题目要求编写代码',
           hints: JSON.stringify(exercise.hints),
           tags: JSON.stringify(exercise.tags),
           estimatedTime: '15-30分钟',
           publicTests: JSON.stringify([]),
           hiddenTests: JSON.stringify([]),
+          gradingCriteria: JSON.stringify((exercise as any).gradingCriteria || ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识']),
           points: 20,
         }).onDuplicateKeyUpdate({
           set: { description: exercise.description }

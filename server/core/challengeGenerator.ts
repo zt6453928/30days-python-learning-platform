@@ -9,8 +9,11 @@ interface ChallengeTemplate {
   title: string;
   description: string;
   starterCode: string;
+  referenceAnswer?: string;  // 参考答案（可选）
+  answerExplanation?: string;  // 答案解释（可选）
   hints: string[];
   tags: string[];
+  gradingCriteria?: string[];  // 评分标准（可选）
 }
 
 /**
@@ -25,8 +28,11 @@ export function generateExtraChallenges(dayId: number, dayTitle: string): Exerci
     order: index + 1,
     description: template.description,
     starterCode: template.starterCode,
+    referenceAnswer: template.referenceAnswer,
+    answerExplanation: template.answerExplanation,
     hints: template.hints,
     tags: template.tags,
+    gradingCriteria: template.gradingCriteria,
   }));
 }
 
@@ -44,11 +50,24 @@ function getChallengeTemplates(dayId: number, dayTitle: string): ChallengeTempla
 # 提示：使用input()获取用户输入，使用f-string格式化输出
 
 `,
+        referenceAnswer: `# 参考答案
+name = input("请输入你的姓名: ")
+age = input("请输入你的年龄: ")
+city = input("请输入你的城市: ")
+
+print("=" * 30)
+print(f"姓名: {name}")
+print(f"年龄: {age}")
+print(f"城市: {city}")
+print("=" * 30)
+`,
+        answerExplanation: '使用input()函数获取用户输入，然后使用f-string格式化输出信息卡片',
         hints: [
           '使用 input() 函数获取用户输入',
           '使用 f-string 进行字符串格式化：f"Hello {name}"',
           '可以使用多个print()语句创建卡片效果',
         ],
+        gradingCriteria: ['使用input()获取用户输入', '使用f-string格式化输出', '输出格式清晰易读'],
         tags: ['Day 1', 'input', 'output', 'string'],
       },
       {
@@ -64,6 +83,11 @@ import sys
           '使用 sys.version 获取版本信息',
           '使用 sys.executable 获取Python路径',
         ],
+        referenceAnswer: `# 参考答案
+# 请根据题目要求编写代码
+`,
+        answerExplanation: '综合运用本章所学知识完成挑战',
+        gradingCriteria: ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识'],
         tags: ['Day 1', 'sys', 'version'],
       },
     ],
@@ -80,6 +104,11 @@ import sys
           '使用 int(), float(), str() 进行转换',
           '注意某些转换可能失败（如 int("abc")）',
         ],
+        referenceAnswer: `# 参考答案
+# 请根据题目要求编写代码
+`,
+        answerExplanation: '综合运用本章所学知识完成挑战',
+        gradingCriteria: ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识'],
         tags: ['Day 2', 'type', 'casting', 'variable'],
       },
       {
@@ -94,6 +123,11 @@ import sys
           '使用 float() 将输入转换为数字',
           '使用 if-elif-else 判断运算符',
         ],
+        referenceAnswer: `# 参考答案
+# 请根据题目要求编写代码
+`,
+        answerExplanation: '综合运用本章所学知识完成挑战',
+        gradingCriteria: ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识'],
         tags: ['Day 2', 'input', 'operators', 'calculation'],
       },
     ],
@@ -108,6 +142,11 @@ import sys
           '使用运算符优先级',
           '考虑使用括号改变优先级',
         ],
+        referenceAnswer: `# 参考答案
+# 请根据题目要求编写代码
+`,
+        answerExplanation: '综合运用本章所学知识完成挑战',
+        gradingCriteria: ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识'],
         tags: ['Day 3', 'operators', 'expression'],
       },
       {
@@ -121,6 +160,11 @@ import sys
           'BMI公式：体重 / 身高²',
           '使用比较运算符判断BMI范围',
         ],
+        referenceAnswer: `# 参考答案
+# 请根据题目要求编写代码
+`,
+        answerExplanation: '综合运用本章所学知识完成挑战',
+        gradingCriteria: ['代码能够正常运行', '实现了题目要求的功能', '代码风格良好', '综合运用了本章所学知识'],
         tags: ['Day 3', 'operators', 'calculation'],
       },
     ],
