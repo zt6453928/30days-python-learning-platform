@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, BookOpen, CheckCircle } from "lucide-react";
 import { Link, useParams } from "wouter";
-import { Streamdown } from 'streamdown';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function DayLearn() {
@@ -99,9 +99,7 @@ export default function DayLearn() {
 
           {/* Main Content */}
           <Card className="p-8">
-            <div className="prose prose-slate max-w-none">
-              <Streamdown>{dayContent.content.rawMarkdown}</Streamdown>
-            </div>
+            <MarkdownRenderer content={dayContent.content.rawMarkdown} />
           </Card>
 
           {/* Navigation */}
